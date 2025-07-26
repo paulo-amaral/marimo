@@ -25,8 +25,9 @@ vi.mock("@/core/cells/cells", async (importOriginal) => ({
   useCellActions: vi.fn(),
 }));
 
-vi.mock("@/core/cells/focus", () => ({
-  useSetLastFocusedCellId: vi.fn(),
+vi.mock("@/core/cells/focus", async (importOriginal) => ({
+  ...(await importOriginal()),
+  useCellFocusActions: vi.fn(),
 }));
 
 vi.mock("@/core/saving/save-component", () => ({
@@ -101,6 +102,8 @@ const mockCellActions = MockNotebook.cellActions({
   sendToBottom: vi.fn(),
   updateCellConfig: vi.fn(),
   markTouched: vi.fn(),
+  deleteCell: vi.fn(),
+  undoDeleteCell: vi.fn(),
 });
 
 const mockSaveCellConfig = vi.mocked(saveCellConfig);
@@ -235,7 +238,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: false,
+        where: "after",
       });
     });
 
@@ -252,7 +255,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: true,
+        where: "before",
       });
     });
 
@@ -421,7 +424,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: true,
+        where: "before",
       });
     });
 
@@ -441,7 +444,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: false,
+        where: "after",
       });
     });
 
@@ -505,7 +508,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: false,
+        where: "after",
       });
     });
 
@@ -522,7 +525,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: true,
+        where: "before",
       });
     });
 
@@ -539,7 +542,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: false,
+        where: "after",
       });
     });
 
@@ -556,7 +559,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: mockCellId,
-        before: true,
+        where: "before",
       });
     });
 
@@ -1353,7 +1356,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: cellId1,
-        before: false,
+        where: "after",
       });
       expect(mockEvent.preventDefault).toHaveBeenCalled();
     });
@@ -1375,7 +1378,7 @@ describe("useCellNavigationProps", () => {
 
       expect(mockCellActions.focusCell).toHaveBeenCalledWith({
         cellId: cellId1,
-        before: true,
+        where: "before",
       });
       expect(mockEvent.preventDefault).toHaveBeenCalled();
     });

@@ -202,6 +202,7 @@ dependencies = [
     "types-redis~=4.6.0.20241004",
     "types-Markdown~=3.6.0.20240316",
     "types-PyYAML~=6.0.12.20240808",
+    "mcp>=1.0.0; python_version >= '3.10'",
 ]
 
 [tool.hatch.envs.typecheck.scripts]
@@ -220,6 +221,7 @@ extra-dependencies = [
     "pytest~=8.3.4",
     "pytest-timeout~=2.3.1",
     "pytest-codecov~=0.6.1",
+    "pytest-rerunfailures~=15.1",
     "pytest-asyncio~=0.26.0",
 ]
 
@@ -248,6 +250,7 @@ extra-dependencies = [
     "pytest~=8.3.4",
     "pytest-timeout~=2.3.1",
     "pytest-codecov~=0.6.1",
+    "pytest-rerunfailures~=15.1",
     "pytest-asyncio~=0.26.0",
     "python-lsp-server>=1.10.0",
     # For testing mo.ui.chart, table, ...
@@ -287,6 +290,7 @@ extra-dependencies = [
     "jax>=0.4.0; python_version == '3.12'",
     "torch>=2.4.0; python_version == '3.12'",
     "scikit-bio>=0.6.3; python_version == '3.12'",
+    "mcp>=1.0.0; python_version >= '3.10'",
 ]
 
 [[tool.hatch.envs.test-optional.matrix]]
@@ -526,6 +530,8 @@ format_on_save = true
 
 [tool.marimo.experimental]
 multi_column = true
+performant_table_charts = true
+mcp_docs = true
 
 [tool.marimo.display]
 dataframes = "rich"

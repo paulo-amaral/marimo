@@ -5,15 +5,21 @@ import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { mergeProps, useFocusWithin, useKeyboard } from "react-aria";
 import { aiCompletionCellAtom } from "@/core/ai/state";
 import { cellIdsAtom, notebookAtom, useCellActions } from "@/core/cells/cells";
-import { useSetLastFocusedCellId } from "@/core/cells/focus";
+import { useCellFocusActions } from "@/core/cells/focus";
 import type { CellId } from "@/core/cells/ids";
-import { hotkeysAtom, keymapPresetAtom } from "@/core/config/config";
+import { usePendingDeleteService } from "@/core/cells/pending-delete-service";
+import {
+  hotkeysAtom,
+  keymapPresetAtom,
+  userConfigAtom,
+} from "@/core/config/config";
 import type { HotkeyAction } from "@/core/hotkeys/hotkeys";
 import { parseShortcut } from "@/core/hotkeys/shortcuts";
 import { saveCellConfig } from "@/core/network/requests";
 import { useSaveNotebook } from "@/core/saving/save-component";
 import { Events } from "@/utils/events";
 import type { CellActionsDropdownHandle } from "../cell/cell-actions";
+import { useDeleteManyCellsCallback } from "../cell/useDeleteCell";
 import { useRunCells } from "../cell/useRunCells";
 import { useCellClipboard } from "./clipboard";
 import { focusCell, focusCellEditor } from "./focus-utils";
@@ -72,7 +78,7 @@ function addSingleHandler(handler: HotkeyHandler["bulkHandle"]): HotkeyHandler {
 }
 
 function useCellFocusProps(cellId: CellId) {
-  const setLastFocusedCellId = useSetLastFocusedCellId();
+  const focusActions = useCellFocusActions();
   const actions = useCellActions();
   const setTemporarilyShownCode = useSetAtom(temporarilyShownCodeAtom);
 
@@ -80,12 +86,13 @@ function useCellFocusProps(cellId: CellId) {
   const { focusWithinProps } = useFocusWithin({
     onFocusWithin: () => {
       // On focus, set the last focused cell id.
-      setLastFocusedCellId(cellId);
+      focusActions.focusCell({ cellId });
     },
     onBlurWithin: () => {
       // On blur, hide the code if it was temporarily shown.
       setTemporarilyShownCode(false);
       actions.markTouched({ cellId });
+      focusActions.blurCell();
     },
   });
 
@@ -123,8 +130,27 @@ export function useCellNavigationProps(
   const runCells = useRunCells();
   const keymapPreset = useAtomValue(keymapPresetAtom);
   const { copyCells, pasteAtCell } = useCellClipboard();
-  const selectionActions = useCellSelectionActions();
+  const rawSelectionActions = useCellSelectionActions();
   const isSelected = useIsCellSelected(cellId);
+  const pendingDeleteService = usePendingDeleteService();
+  const deleteCells = useDeleteManyCellsCallback();
+  const userConfig = useAtomValue(userConfigAtom);
+
+  // Wrap selection actions to clear pending cells on any selection change
+  const selectionActions = {
+    clear: () => {
+      pendingDeleteService.clear();
+      rawSelectionActions.clear();
+    },
+    extend: (args: Parameters<typeof rawSelectionActions.extend>[0]) => {
+      pendingDeleteService.clear();
+      rawSelectionActions.extend(args);
+    },
+    select: (args: Parameters<typeof rawSelectionActions.select>[0]) => {
+      pendingDeleteService.clear();
+      rawSelectionActions.select(args);
+    },
+  };
 
   const hotkeys = useAtomValue(hotkeysAtom);
 
@@ -159,13 +185,13 @@ export function useCellNavigationProps(
         },
         // Move up
         ArrowUp: () => {
-          actions.focusCell({ cellId, before: true });
+          actions.focusCell({ cellId, where: "before" });
           selectionActions.clear();
           return true;
         },
         // Move down
         ArrowDown: () => {
-          actions.focusCell({ cellId, before: false });
+          actions.focusCell({ cellId, where: "after" });
           selectionActions.clear();
           return true;
         },
@@ -180,7 +206,7 @@ export function useCellNavigationProps(
             selectionActions.extend({ cellId: beforeCellId, allCellIds });
           }
           // Focus the cell
-          actions.focusCell({ cellId, before: true });
+          actions.focusCell({ cellId, where: "before" });
           return true;
         },
         // Select down
@@ -194,7 +220,7 @@ export function useCellNavigationProps(
             selectionActions.extend({ cellId: afterCellId, allCellIds });
           }
           // Focus the cell
-          actions.focusCell({ cellId, before: false });
+          actions.focusCell({ cellId, where: "after" });
           return true;
         },
         // Clear selection
@@ -230,27 +256,8 @@ export function useCellNavigationProps(
         }
       }
 
-      // Keymaps when using vim.
-      if (
-        keymapPreset === "vim" &&
-        handleVimKeybinding(evt.nativeEvent || evt, {
-          j: keymaps.ArrowDown,
-          k: keymaps.ArrowUp,
-          i: keymaps.Enter,
-          "shift+j": keymaps["Shift+ArrowDown"],
-          "shift+k": keymaps["Shift+ArrowUp"],
-          "g g": keymaps["Mod+ArrowUp"],
-          "shift+g": keymaps["Mod+ArrowDown"],
-        })
-      ) {
-        evt.preventDefault();
-        return;
-      }
-
       // Shortcuts
-      const shortcuts: Partial<
-        Record<HotkeyAction, HotkeyHandler["handle"] | HotkeyHandler>
-      > = {
+      const shortcuts = {
         // Cell actions
         "cell.run": addSingleHandler((cellIds) => {
           runCells(cellIds);
@@ -353,7 +360,7 @@ export function useCellNavigationProps(
           // Only focus if it is a single cell
           if (cellIds.length === 1) {
             const cellId = cellIds[0];
-            actions.focusCell({ cellId, before: false });
+            actions.focusCell({ cellId, where: "after" });
             if (nextHideCode) {
               // Move focus from the editor to the cell
               editorView.current?.contentDOM.blur();
@@ -366,11 +373,11 @@ export function useCellNavigationProps(
           return true;
         }),
         "cell.focusDown": (cellId) => {
-          actions.focusCell({ cellId, before: false });
+          actions.focusCell({ cellId, where: "after" });
           return true;
         },
         "cell.focusUp": (cellId) => {
-          actions.focusCell({ cellId, before: true });
+          actions.focusCell({ cellId, where: "before" });
           return true;
         },
         "cell.sendToBottom": addSingleHandler((cellIds) => {
@@ -429,9 +436,84 @@ export function useCellNavigationProps(
           actions.createNewCell({ cellId, before: false, autoFocus: true });
           return true;
         },
-      };
+        "cell.delete": () => {
+          // Only handle if destructive_delete is enabled
+          if (!userConfig.keymap.destructive_delete) {
+            return false;
+          }
+
+          const cellIds =
+            selectedCells.size >= 2 ? [...selectedCells] : [cellId];
+
+          // Cannot delete running cells
+          const notebook = store.get(notebookAtom);
+          const hasRunningCell = cellIds.some((id) => {
+            const { status } = notebook.cellRuntime[id];
+            return status === "running" || status === "queued";
+          });
+
+          if (hasRunningCell) {
+            return false;
+          }
+
+          // First keymap sets pending, second deletes
+          if (pendingDeleteService.idle) {
+            pendingDeleteService.submit(cellIds);
+            return true;
+          }
+
+          // user repeated keymap
+          deleteCells({ cellIds });
+          pendingDeleteService.clear();
+          return true;
+        },
+      } satisfies Partial<
+        Record<HotkeyAction, HotkeyHandler["handle"] | HotkeyHandler>
+      >;
 
       const selectedCells = getSelectedCells(store);
+
+      // Keymaps when using vim.
+      if (
+        keymapPreset === "vim" &&
+        handleVimKeybinding(evt.nativeEvent || evt, {
+          j: keymaps.ArrowDown,
+          k: keymaps.ArrowUp,
+          i: keymaps.Enter,
+          "shift+j": keymaps["Shift+ArrowDown"],
+          "shift+k": keymaps["Shift+ArrowUp"],
+          "g g": keymaps["Mod+ArrowUp"],
+          "shift+g": keymaps["Mod+ArrowDown"],
+          "d d": () => shortcuts["cell.delete"](),
+          "y y": () => {
+            copyCells(selectedCells.size >= 2 ? [...selectedCells] : [cellId]);
+            return true;
+          },
+          p: () => {
+            pasteAtCell(cellId, { before: false });
+            return true;
+          },
+          "shift+p": () => {
+            pasteAtCell(cellId, { before: true });
+            return true;
+          },
+          o: () => {
+            actions.createNewCell({ cellId, before: false, autoFocus: true });
+            return true;
+          },
+          "shift+o": () => {
+            actions.createNewCell({ cellId, before: true, autoFocus: true });
+            return true;
+          },
+          u: () => {
+            actions.undoDeleteCell();
+            return true;
+          },
+        })
+      ) {
+        evt.preventDefault();
+        return;
+      }
 
       // Handle the shortcut
       for (const [shortcut, handler] of Object.entries(shortcuts)) {

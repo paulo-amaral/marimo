@@ -410,17 +410,26 @@ const {
       cellIds: state.cellIds.moveColumn(action.column, action.overColumn),
     };
   },
-  focusCell: (state, action: { cellId: CellId; before: boolean }) => {
+  focusCell: (
+    state,
+    action: { cellId: CellId; where: "before" | "after" | "exact" },
+  ) => {
     const column = state.cellIds.findWithId(action.cellId);
     if (column.length === 0) {
       return state;
     }
 
-    const { cellId, before } = action;
+    const { cellId, where } = action;
     const index = column.indexOfOrThrow(cellId);
-    let focusIndex = before ? index - 1 : index + 1;
-    // clamp
-    focusIndex = clamp(focusIndex, 0, column.length - 1);
+
+    let focusIndex: number;
+    if (where === "before") {
+      focusIndex = clamp(index - 1, 0, column.length - 1);
+    } else if (where === "after") {
+      focusIndex = clamp(index + 1, 0, column.length - 1);
+    } else {
+      focusIndex = index;
+    }
     const focusCellId = column.atOrThrow(focusIndex);
     // can scroll immediately, without setting scrollKey in state, because
     // CellArray won't need to re-render
@@ -428,7 +437,7 @@ const {
       cellId: focusCellId,
       cell: state.cellHandles[focusCellId],
       isCodeHidden: isCellCodeHidden(state, focusCellId),
-      codeFocus: before ? "bottom" : "top",
+      codeFocus: where === "after" ? "top" : "bottom",
       variableName: undefined,
     });
     return state;
@@ -1416,6 +1425,9 @@ function updateCellData({
 export function getCellConfigs(state: NotebookState): CellConfig[] {
   const cells = state.cellData;
 
+  // We set to null by default to prevent inconsistencies between undefined & null
+  const defaultCellConfig: Partial<CellConfig> = { column: null };
+
   // Handle the case where there's only one column
   // We don't want to set the column config
   const hasMultipleColumns = state.cellIds.getColumns().length > 1;
@@ -1424,7 +1436,7 @@ export function getCellConfigs(state: NotebookState): CellConfig[] {
       return column.inOrderIds.map((cellId) => {
         return {
           ...cells[cellId].config,
-          column: null,
+          ...defaultCellConfig,
         };
       });
     });
@@ -1432,7 +1444,7 @@ export function getCellConfigs(state: NotebookState): CellConfig[] {
 
   return state.cellIds.getColumns().flatMap((column, columnIndex) => {
     return column.inOrderIds.map((cellId, cellIndex) => {
-      const config: Partial<CellConfig> = { column: undefined };
+      const config: Partial<CellConfig> = { ...defaultCellConfig };
 
       // Only set the column index for the first cell in the column
       if (cellIndex === 0) {

@@ -3,6 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
+  AlertTriangleIcon,
   BrainIcon,
   CpuIcon,
   EditIcon,
@@ -44,6 +45,7 @@ import { saveUserConfig } from "@/core/network/requests";
 import { isWasm } from "@/core/wasm/utils";
 import { Banner } from "@/plugins/impl/common/error-banner";
 import { THEMES } from "@/theme/useTheme";
+import { arrayToggle } from "@/utils/arrays";
 import { cn } from "@/utils/cn";
 import { keyboardShortcutsAtom } from "../editor/controls/keyboard-shortcuts";
 import { Badge } from "../ui/badge";
@@ -581,6 +583,48 @@ export const UserConfigForm: React.FC = () => {
                       <FormMessage />
                       <IsOverridden userConfig={config} name="keymap.preset" />
                     </FormItem>
+                  </div>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="keymap.destructive_delete"
+                render={({ field }) => (
+                  <div className="flex flex-col space-y-1">
+                    <FormItem className={formItemClasses}>
+                      <FormLabel className="font-normal">
+                        Destructive delete
+                      </FormLabel>
+                      <FormControl>
+                        <Checkbox
+                          data-testid="destructive-delete-checkbox"
+                          checked={field.value}
+                          disabled={field.disabled}
+                          onCheckedChange={(checked) => {
+                            field.onChange(Boolean(checked));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <IsOverridden
+                        userConfig={config}
+                        name="keymap.destructive_delete"
+                      />
+                    </FormItem>
+                    <FormDescription className="flex items-center gap-1">
+                      Allow deleting non-empty cells
+                      <Tooltip
+                        content={
+                          <div className="max-w-xs">
+                            <strong>Use with caution:</strong> Deleting cells
+                            with code can lose work and computed results since
+                            variables are removed from memory.
+                          </div>
+                        }
+                      >
+                        <AlertTriangleIcon className="w-3 h-3 text-[var(--amber-11)]" />
+                      </Tooltip>
+                    </FormDescription>
 
                     <div>
                       <Button
@@ -971,6 +1015,66 @@ export const UserConfigForm: React.FC = () => {
                   <FormDescription>
                     The default SQL output format for new notebooks; overridden
                     by "sql_output" in the application config.
+                  </FormDescription>
+                </div>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="runtime.default_auto_download"
+              render={({ field }) => (
+                <div className="flex flex-col gap-y-1">
+                  <FormItem className={formItemClasses}>
+                    <FormLabel>Auto output formats</FormLabel>
+                    <FormControl>
+                      <div className="flex gap-4">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="html-checkbox"
+                            checked={
+                              Array.isArray(field.value) &&
+                              field.value.includes("html")
+                            }
+                            onCheckedChange={() => {
+                              const currentValue = Array.isArray(field.value)
+                                ? field.value
+                                : [];
+                              field.onChange(arrayToggle(currentValue, "html"));
+                            }}
+                          />
+                          <FormLabel htmlFor="html-checkbox">HTML</FormLabel>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="ipynb-checkbox"
+                            checked={
+                              Array.isArray(field.value) &&
+                              field.value.includes("ipynb")
+                            }
+                            onCheckedChange={() => {
+                              const currentValue = Array.isArray(field.value)
+                                ? field.value
+                                : [];
+                              field.onChange(
+                                arrayToggle(currentValue, "ipynb"),
+                              );
+                            }}
+                          />
+                          <FormLabel htmlFor="ipynb-checkbox">IPYNB</FormLabel>
+                        </div>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                    <IsOverridden
+                      userConfig={config}
+                      name="runtime.default_auto_download"
+                    />
+                  </FormItem>
+                  <FormDescription>
+                    When enabled, marimo will periodically save notebooks in
+                    your selected formats (HTML, IPYNB) to a folder named{" "}
+                    <Kbd className="inline">__marimo__</Kbd> next to your
+                    notebook file.
                   </FormDescription>
                 </div>
               )}
@@ -1541,9 +1645,38 @@ export const UserConfigForm: React.FC = () => {
                       />
                     </FormControl>
                   </FormItem>
+
                   <FormDescription>
                     Enable experimental real-time collaboration. This change
                     requires a page refresh to take effect.
+                  </FormDescription>
+                </div>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="experimental.performant_table_charts"
+              render={({ field }) => (
+                <div className="flex flex-col gap-y-1">
+                  <FormItem className={formItemClasses}>
+                    <FormLabel className="font-normal">
+                      Performant Table Charts
+                    </FormLabel>
+                    <FormControl>
+                      <Checkbox
+                        data-testid="performant-table-charts-checkbox"
+                        checked={field.value === true}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                  <IsOverridden
+                    userConfig={config}
+                    name="experimental.performant_table_charts"
+                  />
+                  <FormDescription>
+                    Enable experimental table charts which are computed on the
+                    backend.
                   </FormDescription>
                 </div>
               )}

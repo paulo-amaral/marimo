@@ -84,11 +84,13 @@ class KeymapConfig(TypedDict):
     - `preset`: one of `"default"` or `"vim"`
     - `overrides`: a dict of keymap actions to their keymap override
     - `vimrc`: path to a vimrc file to load keymaps from
+    - `destructive_delete`: if `True`, allows deleting cells with content.
     """
 
     preset: Literal["default", "vim"]
     overrides: NotRequired[dict[str, str]]
     vimrc: NotRequired[Optional[str]]
+    destructive_delete: NotRequired[bool]
 
 
 OnCellChangeType = Literal["lazy", "autorun"]
@@ -438,6 +440,57 @@ class MarimoConfig(TypedDict):
     snippets: NotRequired[SnippetsConfig]
     datasources: NotRequired[DatasourcesConfig]
     sharing: NotRequired[SharingConfig]
+    # We don't support configuring MCP servers yet
+    # mcp: NotRequired[MCPConfig]
+
+
+@mddoc
+@dataclass
+class MCPServerStdioConfig(TypedDict):
+    """Configuration for STDIO transport MCP servers"""
+
+    command: str
+    args: NotRequired[Optional[list[str]]]
+    env: NotRequired[Optional[dict[str, str]]]
+    disabled: NotRequired[Optional[bool]]
+
+
+@mddoc
+@dataclass
+class MCPServerStreamableHttpConfig(TypedDict):
+    """Configuration for Streamable HTTP transport MCP servers"""
+
+    url: str
+    headers: NotRequired[Optional[dict[str, str]]]
+    timeout: NotRequired[Optional[float]]
+    env: NotRequired[Optional[dict[str, str]]]
+    disabled: NotRequired[Optional[bool]]
+
+
+MCPServerConfig = Union[MCPServerStdioConfig, MCPServerStreamableHttpConfig]
+
+
+@mddoc
+@dataclass
+class MCPConfig(TypedDict):
+    """
+    Configuration for MCP servers
+
+    Note: the field name `mcpServers` is camelCased to match MCP server
+    config conventions used by popular AI applications (e.g. Cursor, Claude Desktop, etc.)
+    """
+
+    mcpServers: dict[str, MCPServerConfig]
+
+
+DEFAULT_MCP_CONFIG: MCPConfig = MCPConfig(
+    mcpServers={
+        "marimo": MCPServerStreamableHttpConfig(
+            url="https://mcp.marimo.app/mcp"
+        ),
+        # TODO(bjoaquinc): add more Marimo MCP servers here after they are implemented
+    }
+)
 
 
 @mddoc
